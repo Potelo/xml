@@ -67,6 +67,7 @@ lib.BUILD = {
   libraries = {'stdc++'},
 }
 
+result = nil
 --[[
 
   # Lua table format
@@ -117,9 +118,33 @@ lib.BUILD = {
 
 -- Parse a `string` containing xml content and return a table. Uses
 -- xml.Parser with the xml.Parser.Default type.
-function lib.load(string)
-  return parser:load(string)
+function lib.safeload(string)
+
+	result = parser:load(string)
 end
+
+
+function lib.load(string)
+	if pcall(lib.safeload,string) then
+      return result
+    else
+      return {}
+    end
+	
+end
+
+function lib.loadInside(content)
+
+	content = "<temp>" .. content .. "</temp>"
+
+	if pcall(lib.safeload,content) then
+      return result
+    else
+      return {}
+    end
+	
+end
+
 
 -- Parse the XML content of the file at `path` and return a lua table. Uses
 -- xml.Parser with the xml.Parser.Default type.
@@ -139,7 +164,7 @@ local function tagWithAttributes(data)
   local res = data.xml or 'table'
   for k,v in pairs(data) do
     if k ~= 'xml' and type(k) == 'string' then
-      res = res .. ' ' .. k .. "='" .. escape(v) .. "'"
+      res = res .. ' ' .. k .. '="' .. escape(v) .. '"'
     end
   end
   return res
@@ -151,9 +176,12 @@ local function doDump(data, indent, output, last, depth, max_depth)
   end
 
   if data[1] then
-    insert(output, (last == 'n' and indent or '')..'<'..tagWithAttributes(data)..'>')
+  
+	if depth >= 1 then
+		insert(output, (last == 'n' and indent or '')..'<'..tagWithAttributes(data)..'>')
+	end
     last = 'n'
-    local ind = indent..'  '
+    local ind = indent
     for _, child in ipairs(data) do
       local typ = type(child)
       if typ == 'table' then
@@ -167,11 +195,16 @@ local function doDump(data, indent, output, last, depth, max_depth)
         last = 's'
       end
     end
-    insert(output, (last == 'n' and indent or '')..'</'..(data.xml or 'table')..'>')
+	if depth >= 1 then
+		insert(output, (last == 'n' and indent or '')..'</'..(data.xml or 'table')..'>')
+	end
     last = 'n'
   else
     -- no children
-    insert(output, (last == 'n' and indent or '')..'<'..tagWithAttributes(data)..'/>')
+    insert(output, (last == 'n' and indent or '')..'<'..tagWithAttributes(data)..'>')
+	
+	insert(output, (last == 'n' and indent or '')..'</'..(data.xml)..'>')
+	
     last = 'n'
   end
 end
@@ -184,7 +217,28 @@ end
 function lib.dump(table, max_depth)
   local max_depth = max_depth or 3000
   local res = {}
-  doDump(table, '\n', res, 's', 1, max_depth)
+  doDump(table, '', res, 's', 1, max_depth)
+  return lub.join(res, '')
+end
+
+function lib.gettext(table, max_depth)
+if type(table) == "string" then
+	return table
+  end
+  local max_depth = max_depth or 3000
+  local res = {}
+  doDump(table, nil, res, 's', 1, max_depth)
+  return lub.join(res, '')
+end
+
+function lib.getcontent(table, max_depth)
+
+  if type(table) == "string" then
+	return table
+  end
+  local max_depth = max_depth or 3000
+  local res = {}
+  doDump(table, nil, res, 's', 0, max_depth)
   return lub.join(res, '')
 end
 
